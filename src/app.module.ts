@@ -11,7 +11,7 @@ import configuration, { configValues } from './modules/configuration';
 import { AppConfigModule } from './modules/configuration/configuration.module';
 import { HttpModule } from '@nestjs/axios';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
-import { Callback, Subscription } from './modules/watchdog/subscription.entity';
+import { Subscription } from './modules/watchdog/subscription.entity';
 
 @Module({
   imports: [
