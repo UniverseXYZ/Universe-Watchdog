@@ -1,12 +1,12 @@
 FROM node:14 as builder
 WORKDIR /workdir
 
-COPY package.json yarn.lock ./
-RUN yarn install
+COPY package.json package-lock.json ./
+RUN npm install
 
 COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
-RUN yarn build
+RUN npm run build
 
 # production images
 FROM node:14-alpine
