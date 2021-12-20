@@ -2,10 +2,10 @@ import { TypeOrmOptionsFactory, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { Injectable } from '@nestjs/common';
 import { AppConfig } from '../configuration/configuration.service';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
-import { Callback, Subscription } from '../watchdog/subscription.entity';
+import { Subscription } from '../watchdog/subscription.entity';
 
 // TODO: Add all db entities
-const entities = [Subscription, Callback];
+const entities = [Subscription];
 
 @Injectable()
 export class TypeOrmDefaultConfigService implements TypeOrmOptionsFactory {

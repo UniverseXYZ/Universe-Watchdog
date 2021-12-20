@@ -14,7 +14,7 @@ import { ethers } from 'ethers';
 import R from 'ramda';
 import { Repository } from 'typeorm';
 import { AppConfig } from '../configuration/configuration.service';
-import { Callback, Subscription } from './subscription.entity';
+import { Subscription } from './subscription.entity';
 import { SubscriptionStatus, SubscriptionTopic } from './subscription.type';
 import crypto from 'crypto';
 
@@ -89,19 +89,23 @@ function transform_element(element) {
 export class WatchdogService {
   public web3: AlchemyWeb3;
   public network;
+  public callback_endpoints;
 
   constructor(
     private readonly appConfig: AppConfig,
     private readonly httpService: HttpService,
     @InjectRepository(Subscription)
     private readonly subscriptionRepository: Repository<Subscription>,
-    @InjectRepository(Callback)
-    private readonly callbackRepository: Repository<Callback>,
   ) {
     const key = R.path(['alchemy', 'apiKey'], appConfig.values);
     const token = R.path(['alchemy', 'authToken'], appConfig.values);
     const hook_url = R.path(['alchemy', 'webhookApiUrl'], appConfig.values);
+    const callback_endpoints = R.path(
+      ['callback', 'endpoints'],
+      appConfig.values,
+    );
     this.network = R.path(['alchemy', 'network'], appConfig.values);
+
     if (R.isNil(key)) {
       throw new Error('[alchemy.apiKey]: the api key is null or undefined');
     }
@@ -118,9 +122,15 @@ export class WatchdogService {
     if (R.isNil(this.network)) {
       throw new Error('[alchemy.network]: the network is null or undefined');
     }
+    if (R.isNil(callback_endpoints)) {
+      throw new Error(
+        '[callback.endpoints]: the callback endpoints is null or undefined',
+      );
+    }
     const url = `https://${this.network}.alchemyapi.io/v2/${key}`;
 
     this.web3 = createAlchemyWeb3(url);
+    this.callback_endpoints = callback_endpoints;
   }
 
   async query_history(params: AssetTransfersParams) {
@@ -162,26 +172,22 @@ export class WatchdogService {
         },
       });
       fromSubscriptions.map(async (s) => {
-        const callback = await this.callbackRepository.findOne({
-          where: { topic: s.topic },
-        });
-        if (R.isNil(callback)) {
-          console.error(
-            `The call back for this topic ${s.topic} is null or undefined`,
-          );
-          return;
-        }
         if (!topicHandler(s.topic)(element)) {
           return;
         }
-        const callbackUrl = callback.url;
-        this.httpService
-          .put(callbackUrl, R.merge(callback.arguments, processed_element))
-          .subscribe({
-            next: (v) => console.log(v),
-            error: (e) => console.error(e),
-            complete: () => console.info('complete'),
-          });
+        const callbackUrl = R.path(
+          [s.topic],
+          this.callback_endpoints,
+        ) as string;
+        if (R.isNil(callbackUrl)) {
+          console.warn(
+            `[watchdog]: callback endpoint for ${s.topic} is not defined`,
+          );
+          return;
+        }
+        this.httpService.put(callbackUrl, processed_element).subscribe({
+          error: (e) => console.error(e),
+        });
       });
     });
   }
