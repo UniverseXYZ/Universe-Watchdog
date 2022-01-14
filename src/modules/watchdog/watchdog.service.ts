@@ -97,14 +97,13 @@ export class WatchdogService {
     @InjectRepository(Subscription)
     private readonly subscriptionRepository: Repository<Subscription>,
   ) {
-    const key = R.path(['alchemy', 'apiKey'], appConfig.values);
-    const token = R.path(['alchemy', 'authToken'], appConfig.values);
-    const hook_url = R.path(['alchemy', 'webhookApiUrl'], appConfig.values);
-    const callback_endpoints = R.path(
-      ['callback', 'endpoints'],
-      appConfig.values,
-    );
-    this.network = R.path(['alchemy', 'network'], appConfig.values);
+    const key = appConfig.values.ALCHEMY_APIKEY;
+    const token = appConfig.values.ALCHEMY_AUTHTOKEN;
+    const hook_url = appConfig.values.ALCHEMY_WEBHOOKURL;
+    this.network = appConfig.values.ALCHEMY_NETWORK;
+    const callback_endpoints = {
+      NFT: appConfig.values.ORDERBOOK_CALLBACKURL,
+    };
 
     if (R.isNil(key)) {
       throw new Error('[alchemy.apiKey]: the api key is null or undefined');
@@ -146,7 +145,7 @@ export class WatchdogService {
     // check the address in subscription table
     // if the address is in the table, call the callback function
     if (
-      !isValidSignature(body, headers, this.appConfig.values.alchemy.authToken)
+      !isValidSignature(body, headers, this.appConfig.values.ALCHEMY_AUTHTOKEN)
     ) {
       throw new HttpException('Invalid signature', HttpStatus.UNAUTHORIZED);
     }
@@ -213,15 +212,15 @@ export class WatchdogService {
     }
     this.httpService
       .patch(
-        this.appConfig.values.alchemy.webhookApiUrl,
+        this.appConfig.values.ALCHEMY_WEBHOOKURL,
         {
-          webhook_id: this.appConfig.values.alchemy.webhookId,
+          webhook_id: this.appConfig.values.ALCHEMY_WEBHOOKID,
           addresses_to_add: processed_addresses,
           addresses_to_remove: [],
         },
         {
           headers: {
-            'X-Alchemy-Token': this.appConfig.values.alchemy.authToken,
+            'X-Alchemy-Token': this.appConfig.values.ALCHEMY_AUTHTOKEN,
           },
         },
       )
@@ -271,15 +270,15 @@ export class WatchdogService {
     }
     await this.httpService
       .patch(
-        this.appConfig.values.alchemy.webhookApiUrl,
+        this.appConfig.values.ALCHEMY_WEBHOOKURL,
         {
-          webhook_id: this.appConfig.values.alchemy.webhookId,
+          webhook_id: this.appConfig.values.ALCHEMY_WEBHOOKID,
           addresses_to_add: [],
           addresses_to_remove: processed_addresses,
         },
         {
           headers: {
-            'X-Alchemy-Token': this.appConfig.values.alchemy.authToken,
+            'X-Alchemy-Token': this.appConfig.values.ALCHEMY_AUTHTOKEN,
           },
         },
       )
