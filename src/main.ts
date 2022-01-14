@@ -11,8 +11,8 @@ import R from 'ramda';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(AppConfig);
-  const port = config.values.app.port || 8080;
-  const sessionSecret = R.path(['app', 'sessionSecret'], config.values);
+  const port = config.values.APP_PORT || 8080;
+  const sessionSecret = config.values.SESSION_SECRET;
 
   app.setGlobalPrefix('v1');
 
@@ -49,7 +49,7 @@ async function bootstrap() {
     cookie: { secure: false },
   };
 
-  if (config.values.app.env === 'production') {
+  if (config.values.APP_ENV === 'production') {
     sessionOptions.cookie.secure = true;
   }
 
