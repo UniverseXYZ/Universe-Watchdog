@@ -41,6 +41,7 @@ lerna-debug.log*
 
 # environment files
 .env
+.env.dev
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
 **/*.py[cod]

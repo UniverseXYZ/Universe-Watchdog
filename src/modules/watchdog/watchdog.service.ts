@@ -164,6 +164,9 @@ export class WatchdogService {
         console.error('[watchdog]: address maybe wrong');
         return;
       }
+      console.log(
+        `[watchdog]: got address activity for ${processed_element.address}. from ${processed_element.fromAddress} to ${processed_element.toAddress}`,
+      );
       const fromSubscriptions = await this.subscriptionRepository.find({
         where: {
           address: processed_element.fromAddress,
@@ -187,6 +190,7 @@ export class WatchdogService {
         this.httpService.put(callbackUrl, processed_element).subscribe({
           error: (e) => console.error(e),
         });
+        console.log(`[watchdog]: passed address activity to ${callbackUrl}`);
       });
     });
   }
