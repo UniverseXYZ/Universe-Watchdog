@@ -8,7 +8,7 @@ import {
   createAlchemyWeb3,
 } from '@alch/alchemy-web3';
 import { HttpService } from '@nestjs/axios';
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ethers } from 'ethers';
 import R from 'ramda';
@@ -73,7 +73,9 @@ function transform_element(element) {
       fromAddress: ethers.utils.getAddress(fromAddress.toLowerCase()),
       toAddress: ethers.utils.getAddress(toAddress.toLowerCase()),
       value,
-      erc721TokenId,
+      // alchemy sends string hex representation of the token id
+      // @See https://docs.alchemy.com/alchemy/guides/using-notify#address-activity
+      erc721TokenId: ethers.BigNumber.from(erc721TokenId).toString(),
       erc1155Metadata,
       asset,
       category,
@@ -90,6 +92,8 @@ export class WatchdogService {
   public web3: AlchemyWeb3;
   public network;
   public callback_endpoints;
+
+  private logger = new Logger(this.constructor.name);
 
   constructor(
     private readonly appConfig: AppConfig,
@@ -151,30 +155,52 @@ export class WatchdogService {
     }
     const { app, network, webhookType, timestamp, activity } = body;
     if (network !== this.network.substring(4).toUpperCase()) {
-      console.log("[watchdog]: network doesn't match");
+      this.logger.error("Network doesn't match");
       return;
     }
     if (webhookType !== 'ADDRESS_ACTIVITY') {
-      console.log("[watchdog]: webhookType doesn't match");
+      this.logger.error("WebhookType doesn't match");
       return;
     }
     activity.forEach(async (element) => {
       const processed_element = transform_element(element);
       if (R.isNil(processed_element)) {
-        console.error('[watchdog]: address maybe wrong');
+        this.logger.error('Address maybe wrong');
         return;
       }
-      console.log(
-        `[watchdog]: got address activity for ${processed_element.address}. from ${processed_element.fromAddress} to ${processed_element.toAddress}`,
+
+      // @See https://docs.alchemy.com/alchemy/guides/using-notify#address-activity
+      if (!processed_element.address) {
+        this.logger.log(
+          `Got internal or external transfer activity from ${processed_element.fromAddress} to ${processed_element.toAddress}`,
+        );
+        this.logger.log('Skipping as it is not a NFT transfer...');
+        return;
+      }
+
+      this.logger.log(
+        `Got token (id ${processed_element.erc721TokenId}) transfer activity on contract ${processed_element.address}. from ${processed_element.fromAddress} to ${processed_element.toAddress}`,
       );
+
       const fromSubscriptions = await this.subscriptionRepository.find({
         where: {
           address: processed_element.fromAddress,
           status: SubscriptionStatus.ENABLED,
         },
       });
+
+      if (!fromSubscriptions.length) {
+        this.logger.error(
+          `fromAddress ${processed_element.fromAddress} is not under monitoring. Unsubscribing...`,
+        );
+        await this.unsubscribe(
+          [processed_element.fromAddress],
+          SubscriptionTopic.NFTTransfer,
+        );
+      }
       fromSubscriptions.map(async (s) => {
         if (!topicHandler(s.topic)(element)) {
+          this.logger.error(`Unsupported topic ${s.topic}. Skipping...`);
           return;
         }
         const callbackUrl = R.path(
@@ -182,15 +208,13 @@ export class WatchdogService {
           this.callback_endpoints,
         ) as string;
         if (R.isNil(callbackUrl)) {
-          console.warn(
-            `[watchdog]: callback endpoint for ${s.topic} is not defined`,
-          );
+          this.logger.error(`Callback endpoint for ${s.topic} is not defined`);
           return;
         }
         this.httpService.put(callbackUrl, processed_element).subscribe({
           error: (e) => console.error(e),
         });
-        console.log(`[watchdog]: passed address activity to ${callbackUrl}`);
+        this.logger.log(`Passed address activity to ${callbackUrl}`);
       });
     });
   }
@@ -299,7 +323,7 @@ export class WatchdogService {
         topic,
       });
       if (R.isNil(subscription)) {
-        console.log(`The subscription is null or undefined`);
+        this.logger.error(`The subscription is null or undefined`);
         continue;
       }
       subscription.status = SubscriptionStatus.CANCELLED;
