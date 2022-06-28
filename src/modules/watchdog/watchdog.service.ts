@@ -76,7 +76,14 @@ function transform_element(element) {
       // alchemy sends string hex representation of the token id
       // @See https://docs.alchemy.com/alchemy/guides/using-notify#address-activity
       erc721TokenId: ethers.BigNumber.from(erc721TokenId).toString(),
-      erc1155Metadata,
+      erc1155Metadata: erc1155Metadata
+        ? erc1155Metadata.map((data) => {
+            return {
+              tokenId: ethers.BigNumber.from(data.tokenId).toString(),
+              value: ethers.BigNumber.from(data.value).toString(),
+            };
+          })
+        : erc1155Metadata,
       asset,
       category,
       address: contract_address,
@@ -178,9 +185,26 @@ export class WatchdogService {
         return;
       }
 
-      this.logger.log(
-        `Got token (id ${processed_element.erc721TokenId}) transfer activity on contract ${processed_element.address}. from ${processed_element.fromAddress} to ${processed_element.toAddress}`,
-      );
+      if (processed_element.erc721TokenId) {
+        this.logger.log(
+          `Got ERC721 token (id ${processed_element.erc721TokenId}) transfer activity on contract ${processed_element.address}. from ${processed_element.fromAddress} to ${processed_element.toAddress}`,
+        );
+      } else if (processed_element.erc1155Metadata) {
+        const erc1155tokenIds = processed_element.erc1155Metadata.map(
+          (data) => {
+            return data.tokenId;
+          },
+        );
+        this.logger.log(
+          `Got ERC1155 token (ids ${JSON.stringify(
+            erc1155tokenIds,
+          )}) transfer activity on contract ${
+            processed_element.address
+          }. from ${processed_element.fromAddress} to ${
+            processed_element.toAddress
+          }`,
+        );
+      }
 
       const fromSubscriptions = await this.subscriptionRepository.find({
         where: {
